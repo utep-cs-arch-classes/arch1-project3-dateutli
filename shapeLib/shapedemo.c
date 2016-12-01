@@ -35,7 +35,7 @@ main()
   drawString5x7(20,20, "hello", COLOR_GREEN, COLOR_RED);
   shapeInit();
   
-  abDrawPos((AbShape*)&rect10, &rectPos, COLOR_ORANGE, COLOR_BLUE);
+  abDrawPos((AbShape*)&rect10, &rectPos, COLOR_RED, COLOR_BLUE);
 
 }
 

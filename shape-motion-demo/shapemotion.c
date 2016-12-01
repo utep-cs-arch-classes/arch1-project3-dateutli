@@ -12,12 +12,13 @@
 #include <lcddraw.h>
 #include <p2switches.h>
 #include <shape.h>
-#include <abCircle.h>
+#include <../circleLib/abCircle.h>
 
 #define GREEN_LED BIT6
 
 
-AbRect rect10 = {abRectGetBounds, abRectCheck, {10,10}}; /**< 10x10 rectangle */
+AbRect rect10 = {abRectGetBounds, abRectCheck, {10,10}};
+AbRect rect30 = {abRectGetBounds, abRectCheck, {10,30}};
 AbRArrow rightArrow = {abRArrowGetBounds, abRArrowCheck, 30};
 
 AbRectOutline fieldOutline = {	/* playing field */
@@ -25,46 +26,40 @@ AbRectOutline fieldOutline = {	/* playing field */
   {screenWidth/2 - 10, screenHeight/2 - 10}
 };
 
-Layer layer4 = {
-  (AbShape *)&rightArrow,
-  {(screenWidth/2)+10, (screenHeight/2)+5}, /**< bit below & right of center */
-  {0,0}, {0,0},				    /* last & next pos */
-  COLOR_PINK,
-  0
-};
-  
-
-Layer layer3 = {		/**< Layer with an orange circle */
-  (AbShape *)&circle8,
-  {(screenWidth/2)+10, (screenHeight/2)+5}, /**< bit below & right of center */
-  {0,0}, {0,0},				    /* last & next pos */
-  COLOR_VIOLET,
-  &layer4,
-};
-
-
-Layer fieldLayer = {		/* playing field as a layer */
-  (AbShape *) &fieldOutline,
-  {screenWidth/2, screenHeight/2},/**< center */
-  {0,0}, {0,0},				    /* last & next pos */
-  COLOR_BLACK,
-  &layer3
-};
-
-Layer layer1 = {		/**< Layer with a red square */
-  (AbShape *)&rect10,
-  {screenWidth/2, screenHeight/2}, /**< center */
+Layer layer6 = {
+  (AbShape *)&rect30,
+  {(screenWidth-115), (screenHeight-80)},
   {0,0}, {0,0},				    /* last & next pos */
   COLOR_RED,
-  &fieldLayer,
+  0
 };
-
+Layer layer5 = {
+  (AbShape *)&rect30,
+  {(screenWidth-10), (screenHeight-130)},
+  {0,0}, {0,0},				    /* last & next pos */
+  COLOR_RED,
+  &layer6
+};
+Layer layer4 = {
+  (AbShape *)&rect30,
+  {(screenWidth-10), (screenHeight-30)},
+  {0,0}, {0,0},				    /* last & next pos */
+  COLOR_RED,
+  &layer5
+};
+Layer fieldLayer = {		/* playing field as a layer */
+  (AbShape *) &fieldOutline,
+  {screenWidth/2+8, screenHeight/2},/**< center */
+  {0,0}, {0,0},				    /* last & next pos */
+  COLOR_BLACK,
+  &layer4
+};
 Layer layer0 = {		/**< Layer with an orange circle */
-  (AbShape *)&circle14,
-  {(screenWidth/2)+10, (screenHeight/2)+5}, /**< bit below & right of center */
+  (AbShape *)&rect10,
+  {(screenWidth/2)+10, (screenHeight/2)}, /**< bit below & right of center */
   {0,0}, {0,0},				    /* last & next pos */
   COLOR_ORANGE,
-  &layer1,
+  &fieldLayer,
 };
 
 /** Moving Layer
@@ -78,15 +73,8 @@ typedef struct MovLayer_s {
 } MovLayer;
 
 /* initial value of {0,0} will be overwritten */
-MovLayer ml3 = { &layer3, {1,1}, 0 }; /**< not all layers move */
-MovLayer ml1 = { &layer1, {1,2}, &ml3 }; 
-MovLayer ml0 = { &layer0, {2,1}, &ml1 }; 
-
-
-
-
-
-
+MovLayer ml0 = { &layer0, {2,1}, 0};
+MovLayer m11 = { &layer6, {20,20}, 0};
 
 movLayerDraw(MovLayer *movLayers, Layer *layers)
 {
@@ -123,7 +111,35 @@ movLayerDraw(MovLayer *movLayers, Layer *layers)
       } // for col
     } // for row
   } // for moving layer being updated
-}	  
+}
+
+movSides(MovLayer *movLayers, Layer *layers)
+{
+  int row, col;
+  MovLayer *movLayer;
+
+  for (movLayer = movLayers; movLayer; movLayer = movLayer->next) { /* for each moving layer */
+    Region bounds;
+    layerGetBounds(movLayer->layer, &bounds);
+    lcd_setArea(bounds.topLeft.axes[0], bounds.topLeft.axes[1], 
+		bounds.botRight.axes[0], bounds.botRight.axes[1]);
+    for (row = bounds.topLeft.axes[1]; row <= bounds.botRight.axes[1]; row++) {
+      for (col = bounds.topLeft.axes[0]; col <= bounds.botRight.axes[0]; col++) {
+	Vec2 pixelPos = {col, row};
+	u_int color = bgColor;
+	Layer *probeLayer;
+	for (probeLayer = layers; probeLayer; 
+	     probeLayer = probeLayer->next) { /* probe all layers, in order */
+	  if (abShapeCheck(probeLayer->abShape, &probeLayer->pos, &pixelPos)) {
+	    color = probeLayer->color;
+	    break; 
+	  } /* if probe check */
+	} // for checking all layers at col, row
+	lcd_writeColor(color); 
+      } // for col
+    } // for row
+  } // for moving layer being updated
+}
 
 
 
@@ -151,6 +167,15 @@ void mlAdvance(MovLayer *ml, Region *fence)
     } /**< for axis */
     ml->layer->posNext = newPos;
   } /**< for ml */
+}
+void mlSwitchPos(MovLayer *ml)
+{
+  Vec2 newPos;
+  for (; ml; ml = ml->next) {
+    newPos.axes[0] = 10;
+    newPos.axes[1] = 10;
+    ml->layer->posNext = newPos;
+  }
 }
 
 
@@ -205,6 +230,7 @@ void wdt_c_handler()
   count ++;
   if (count == 15) {
     mlAdvance(&ml0, &fieldFence);
+    mlSwitchPos(&m11);
     if (p2sw_read())
       redrawScreen = 1;
     count = 0;
